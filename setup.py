@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'send_message = robo_behaviors_fsm.send_message:main'
         ],
     },
 )
