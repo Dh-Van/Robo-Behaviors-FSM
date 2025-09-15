@@ -27,11 +27,11 @@ setup(
 
 
 # .bashrc
-'''
-build1() {
+'''build1() {
         cd ~/ros2_ws && colcon build --symlink-install --packages-select robo_behaviors_fsm && source ~/ros2_ws/install/setup.bash
 }
 
 run1() {
-     
+        ros2 run robo_behaviors_fsm "$1"
+}
 '''
