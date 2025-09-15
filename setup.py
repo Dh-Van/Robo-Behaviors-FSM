@@ -24,3 +24,14 @@ setup(
         ],
     },
 )
+
+
+# .bashrc
+'''
+build1() {
+        cd ~/ros2_ws && colcon build --symlink-install --packages-select robo_behaviors_fsm && source ~/ros2_ws/install/setup.bash
+}
+
+run1() {
+     
+'''
