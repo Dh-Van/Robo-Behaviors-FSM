@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'send_message = robo_behaviors_fsm.send_message:main',
             'drive_circle = robo_behaviors_fsm.drive_circle_node:main',
+            'wall_follow = robo_behaviors_fsm.wall_following_node:main',
         ],
     },
 )

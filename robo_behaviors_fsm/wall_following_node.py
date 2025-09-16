@@ -9,49 +9,38 @@ from std_msgs.msg import Bool
 
 from geometry_msgs.msg import Twist
 
-class DriveCircleNode(Node):
+class WallFollowingNode(Node):
     """This is a message publishing node, which inherits from the rclpy Node class."""
     def __init__(self):
         """Initializes the SendMessageNode. No inputs."""
-        super().__init__('drive_circle_node')
+        super().__init__('wall_following_node')
         self.timer = self.create_timer(0.1, self.publish_twist_command)
-        self.stop_circle = False
-
+        self.stop_wall_following = False
+        self.found_wall = False
         self.twist_pub = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.create_subscription(Bool, '/turn_off_circle', self.turn_off_circle_callback, 10)
+        self.create_subscription(Bool, '/turn_off_wall_following', self.turn_off_circle_callback, 10)
+        self.found_wall_pub = self.create_publisher(Bool, 'found_wall', 10)
 
         self.linearx_max = 0.3
-        self.angularz_max = 0.3
         self.start_time = self.get_clock().now()
 
     def turn_off_circle_callback(self, msg:Bool):
-        self.stop_circle = msg.data
-        if self.stop_circle:
-            self.get_logger().warn("Turning off circle mode")
-            # twist_msg = Twist() #zero vel
-            # self.twist_pub.publish(twist_msg)
+        self.stop_wall_following = msg.data
+        if self.stop_wall_following:
+            self.get_logger().warn("Turning off wall following mode")
 
+    def find_wall(self):
+        # LIDAR CODER HEREEE
+        a=1
+        if a==2:
+            self.found_wall = True
+        self.found_wall_pub.publish(self.found_wall)
 
     def publish_twist_command(self):
-        if self.stop_circle:
+        if self.stop_wall_following or not self.found_wall:
             return
-        current_time = self.get_clock().now()
-        elapsed_seconds = (current_time - self.start_time).nanoseconds / 1e9
-
-        twist_msg = Twist()
-
-        # Linear velocity (fixed or increasing)
-        twist_msg.linear.x = self.linearx_max  
-
-        # Radius grows linearly with time
-        r0 = 0.3
-        k = 0.05
-        radius = r0 + k * elapsed_seconds
-
-        # Angular velocity from v/r
-        twist_msg.angular.z = max(self.linearx_max / radius, 0.01)
-
-        self.twist_pub.publish(twist_msg)
+        # write code here??
+        # use lidar to turn to wall and then go in a straight line/use PID to correct
 
 
 def main(args=None):
@@ -59,7 +48,7 @@ def main(args=None):
     Input: args(list) -- list of arguments to pass into rclpy. Default None.
     """
     rclpy.init(args=args)      # Initialize communication with ROS
-    node = DriveCircleNode()   # Create our Node
+    node = WallFollowingNode()   # Create our Node
     rclpy.spin(node)           # Run the Node until ready to shutdown
     rclpy.shutdown()           # cleanup
 
