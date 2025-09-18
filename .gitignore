@@ -2,3 +2,5 @@ test/*
 log/*
 .vscode
 resource/*
+__*
+!__init__.py

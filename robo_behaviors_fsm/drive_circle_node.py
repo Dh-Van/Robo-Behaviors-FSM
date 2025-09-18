@@ -1,11 +1,13 @@
 """ This script explores publishing ROS messages in ROS using Python """
 import rclpy
 from rclpy.node import Node
+from state_machine_node import STATE
 
 from std_msgs.msg import Header
 from geometry_msgs.msg import Point, PointStamped
 import numpy as np
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, UInt8
+from state_machine_node import STATE
 
 from geometry_msgs.msg import Twist
 
@@ -14,27 +16,27 @@ class DriveCircleNode(Node):
     def __init__(self):
         """Initializes the SendMessageNode. No inputs."""
         super().__init__('drive_circle_node')
-        self.timer = self.create_timer(0.1, self.publish_twist_command)
-        self.stop_circle = False
+        self.timer = self.create_timer(0.1, self.periodic)
+        self.state = STATE.IDLE
 
         self.twist_pub = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.create_subscription(Bool, '/turn_off_circle', self.turn_off_circle_callback, 10)
+        self.create_subscription(UInt8, '/current_state', self.update_state, 10)
 
         self.linearx_max = 0.3
         self.angularz_max = 0.3
         self.start_time = self.get_clock().now()
 
-    def turn_off_circle_callback(self, msg:Bool):
-        self.stop_circle = msg.data
-        if self.stop_circle:
-            self.get_logger().warn("Turning off circle mode")
-            # twist_msg = Twist() #zero vel
-            # self.twist_pub.publish(twist_msg)
+    def update_state(self, msg):
+        try:
+            self.state = STATE(msg.data)
+        except ValueError as e:
+            print(f'ERROR: Invalid State - {e}')
 
 
-    def publish_twist_command(self):
-        if self.stop_circle:
+    def periodic(self):
+        if self.state != STATE.CIRCLE:
             return
+        
         current_time = self.get_clock().now()
         elapsed_seconds = (current_time - self.start_time).nanoseconds / 1e9
 
@@ -57,7 +59,7 @@ class DriveCircleNode(Node):
 def main(args=None):
     """Initializes a node, runs it, and cleans up after termination.
     Input: args(list) -- list of arguments to pass into rclpy. Default None.
-    """
+    """ 
     rclpy.init(args=args)      # Initialize communication with ROS
     node = DriveCircleNode()   # Create our Node
     rclpy.spin(node)           # Run the Node until ready to shutdown
