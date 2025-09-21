@@ -1,13 +1,12 @@
 """ This script explores publishing ROS messages in ROS using Python """
 import rclpy
 from rclpy.node import Node
-from state_machine_node import STATE
+from robo_behaviors_fsm.state_machine_node import STATE
 
 from std_msgs.msg import Header
 from geometry_msgs.msg import Point, PointStamped
 import numpy as np
 from std_msgs.msg import Bool, UInt8
-from state_machine_node import STATE
 
 from geometry_msgs.msg import Twist
 

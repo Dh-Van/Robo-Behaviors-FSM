@@ -33,7 +33,7 @@ class StateMachineNode(Node):
         self.state_pub = self.create_publisher(UInt8, '/current_state', 10)
         self.timer = self.create_timer(hz, self.periodic)
         self.i = 0
-        self.estop = self.create_subscription(erm, '/estop', 10)
+        # self.estop = self.create_subscription(erm, '/estop', 10)
         self.twist_pub = self.create_publisher(Twist, '/cmd_vel', 10)
 
         
@@ -41,6 +41,7 @@ class StateMachineNode(Node):
         self.i += 1
         msg = UInt8()
         msg.data = STATE(self.i % 6).value
+        msg.data = STATE.CIRCLE.value
         self.state_pub.publish(msg)
 
 
