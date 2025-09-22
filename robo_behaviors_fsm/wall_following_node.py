@@ -19,7 +19,7 @@ class WallFollowingNode(Node):
         self.timer = self.create_timer(0.1, self.periodic)
         
         self.state = STATE.IDLE
-        self.create_subscription(UInt8, 'state_machine_topic', self.update_state, 10)
+        self.create_subscription(UInt8, 'state_machine_topic', self.update_state, 10) # shouldn't this be /current_state?
         self.create_subscription(LaserScan, '/stable_scan', self.scan, 10)
         self.test_driver = self.create_publisher(Twist, '/cmd_vel', 10)
         

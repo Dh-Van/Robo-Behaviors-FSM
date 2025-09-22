@@ -24,7 +24,8 @@ setup(
             'drive_circle = robo_behaviors_fsm.drive_circle_node:main',
             'wall_follow = robo_behaviors_fsm.wall_following_node:main',
             'state_machine = robo_behaviors_fsm.state_machine_node:main',
-            'receive = robo_behaviors_fsm.receiver_node:main'
+            'person_following = robo_behaviors_fsm.person_following_node:main',
+            'receive = robo_behaviors_fsm.receiver_node:main',
         ],
     },
 )
