@@ -11,7 +11,7 @@ import math
 
 class WallFollowingNode(Node):
     GOAL_DIST = 0.5
-    P = 0.3
+    P = 0.05
     
     def __init__(self):
         super().__init__('wall_following_node')
@@ -49,8 +49,8 @@ class WallFollowingNode(Node):
         self.distance_error = self.GOAL_DIST - dist_a
         
     def get_forward_distance(self, msg):
-        left_forward_dist = self.get_distance_angle(msg, np.deg2rad(-180 - 20))
-        right_forward_dist = self.get_distance_angle(msg, np.deg2rad(180 - 20))
+        left_forward_dist = self.get_distance_angle(msg, np.deg2rad(-180 - 10))
+        right_forward_dist = self.get_distance_angle(msg, np.deg2rad(180 - 10))
         front_forward_dist = self.get_distance_angle(msg, np.deg2rad(180))
         
         return min(left_forward_dist, (min(right_forward_dist, front_forward_dist)))
@@ -61,9 +61,9 @@ class WallFollowingNode(Node):
     def periodic(self):
         msg = Twist()
         msg.linear.x = 0.1
-        msg.angular.z = (-self.P * (self.distance_error)) + (-0.1 * self.wall_angle)
+        msg.angular.z = (-self.P * (self.distance_error)) + (-0.05* self.wall_angle)
         
-        if(self.dist_forward <= self.GOAL_DIST * 2):
+        if(self.dist_forward <= self.GOAL_DIST * 1.5):
             msg.angular.z = -1.0
         
         print(msg.angular.z)
