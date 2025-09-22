@@ -29,10 +29,9 @@ class StateMachineNode(Node):
         super().__init__('state_machine_node')
         
         self.state = STATE.IDLE
-        hz = 3 # 1/3?
         
-        self.state_pub = self.create_publisher(String, '/current_state', 10)
-        self.timer = self.create_timer(hz, self.periodic)
+        self.state_pub = self.create_publisher(UInt8, '/current_state', 10)
+        self.timer = self.create_timer(0.1, self.periodic)
         self.i = 0
         self.estop = False
         self.estop_sub = self.create_subscription(Bool, '/estop', self.estop_callback, 10)
@@ -50,8 +49,8 @@ class StateMachineNode(Node):
         # msg = UInt8()
         # msg.data = STATE(self.i % 6).value
         # msg.data = STATE.CIRCLE.value
-        msg = String()
-        msg.data = self.state.name
+        msg = UInt8()
+        msg.data = self.state.value
         self.state_pub.publish(msg)
 
         match(self.state):
@@ -61,6 +60,10 @@ class StateMachineNode(Node):
                     self.state = STATE.CIRCLE
                 if self.estop:
                     self.state = STATE.ESTOP
+                twist_msg = Twist()
+                twist_msg.linear.x = 0.0
+                twist_msg.angular.z = 0.0
+                self.twist_pub.publish(twist_msg)
             case STATE.ESTOP:
                 # TELL MOTOR TO STOP
                 twist_msg = Twist()
@@ -88,9 +91,11 @@ class StateMachineNode(Node):
                     self.turn_start_time = self.get_clock().now()
                 twist_msg = Twist()
                 twist_msg.linear.x = 0.0
-                twist_msg.angular.z = 0.3
+                twist_msg.angular.z = -0.3
+                self.twist_pub.publish(twist_msg)
+
                 elapsed = (self.get_clock().now() - self.turn_start_time).nanoseconds * 1e-9
-                time_to_turn = 2 #idk math
+                time_to_turn = 2.35619/0.3 #idk math
                 if(elapsed > time_to_turn):
                     self.state = STATE.STRAIGHT
                     self.turn_start_time = None
@@ -99,9 +104,11 @@ class StateMachineNode(Node):
                     self.state = STATE.ESTOP
 
                 twist_msg = Twist()
-                twist_msg.linear.x = 0.5
+                twist_msg.linear.x = 0.2
+                twist_msg.angular.z = 0.0
                 if self.found_person:
                     self.state = STATE.PERSON_FOLLOW
+                self.twist_pub.publish(twist_msg)
 
                 
             case STATE.PERSON_FOLLOW:

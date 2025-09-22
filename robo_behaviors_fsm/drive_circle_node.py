@@ -50,10 +50,9 @@ class DriveCircleNode(Node):
         radius = r0 + k * elapsed_seconds
 
         # Angular velocity from v/r
-        twist_msg.angular.z = max(self.linearx_max / radius, 0.01)
+        twist_msg.angular.z = -1 * max(self.linearx_max / radius, 0.01)
 
         self.twist_pub.publish(twist_msg)
-
 
 def main(args=None):
     """Initializes a node, runs it, and cleans up after termination.

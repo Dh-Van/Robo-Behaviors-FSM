@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import UInt8
+from std_msgs.msg import UInt8, Bool
 from sensor_msgs.msg._laser_scan import LaserScan
 from robo_behaviors_fsm.state_machine_node import STATE
 from geometry_msgs.msg import Twist
@@ -10,7 +10,7 @@ import numpy as np
 import math
 
 class WallFollowingNode(Node):
-    GOAL_DIST = 0.5
+    GOAL_DIST = 0.2
     P = 0.05
     
     def __init__(self):
@@ -19,13 +19,16 @@ class WallFollowingNode(Node):
         self.timer = self.create_timer(0.1, self.periodic)
         
         self.state = STATE.IDLE
-        self.create_subscription(UInt8, 'state_machine_topic', self.update_state, 10) # shouldn't this be /current_state?
+        self.create_subscription(UInt8, '/current_state', self.update_state, 10) # shouldn't this be /current_state?
         self.create_subscription(LaserScan, '/stable_scan', self.scan, 10)
         self.test_driver = self.create_publisher(Twist, '/cmd_vel', 10)
-        
+        self.wall_end_pub = self.create_publisher(Bool, '/wall_end', 10)
+        self.wall_found_pub = self.create_publisher(Bool, '/wall_found', 10)
         self.distance_error = 0
         self.wall_angle = -180
         self.dist_forward = 3
+        self.following_time = None
+
         
         
     def update_state(self, msg):
@@ -59,17 +62,33 @@ class WallFollowingNode(Node):
         return msg.ranges[int((angle - msg.angle_min) / msg.angle_increment)]
             
     def periodic(self):
+        found_msg = Bool()
+        found_msg.data = False
+        print(self.distance_error)
+        if self.following_time is None:
+            self.following_time = self.get_clock().now()
+            
+        if(abs(self.distance_error) <= 1.5):
+            found_msg.data = True
+        self.wall_found_pub.publish(found_msg)
+            
         msg = Twist()
         msg.linear.x = 0.1
         msg.angular.z = (-self.P * (self.distance_error)) + (-0.05* self.wall_angle)
         
-        if(self.dist_forward <= self.GOAL_DIST * 1.5):
-            msg.angular.z = -1.0
+        wall_msg = Bool()
+        elapsed = (self.get_clock().now() - self.following_time).nanoseconds * 1e-9
+        print(self.dist_forward)
+        if(elapsed > 5 and self.dist_forward <= 1.5):
+            wall_msg.data = True
+        else:
+            wall_msg.data = False
+        self.wall_end_pub.publish(wall_msg)
         
-        print(msg.angular.z)
-        self.test_driver.publish(msg)
-        # if(self.state != STATE.WALL_FOLLOW):
-        #     return
+        # print(msg.angular.z)
+        if(self.state == STATE.WALL_FOLLOW):
+            self.test_driver.publish(msg)
+            
         pass
         
         

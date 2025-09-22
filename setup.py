@@ -6,11 +6,6 @@ setup(
     name=package_name,
     version='0.0.0',
     packages=find_packages(exclude=['test']),
-    data_files=[
-        ('share/ament_index/resource_index/packages',
-            ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),
-    ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='root',
@@ -20,14 +15,17 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'send_message = robo_behaviors_fsm.send_message:main',
             'drive_circle = robo_behaviors_fsm.drive_circle_node:main',
             'wall_follow = robo_behaviors_fsm.wall_following_node:main',
             'state_machine = robo_behaviors_fsm.state_machine_node:main',
             'person_following = robo_behaviors_fsm.person_following_node:main',
-            'receive = robo_behaviors_fsm.receiver_node:main',
         ],
     },
+    data_files=[
+        ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name, ['launch/launch.py']),
+    ],
 )
 
 
