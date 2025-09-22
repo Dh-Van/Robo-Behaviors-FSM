@@ -40,5 +40,14 @@ run1() {
 }
         ros2 run robo_behaviors_fsm "$1"
 }
+testing
+
+ros2 topic pub --once /wall_found std_msgs/msg/Bool "{data: true}"
+
+ros2 topic pub --once /wall_end std_msgs/msg/Bool "{data: true}"
+
+ros2 topic pub --once /found_person std_msgs/msg/Bool "{data: true}"
+
+ros2 topic pub --once /estop std_msgs/msg/Bool "{data: true}"
 
 '''
