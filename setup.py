@@ -19,6 +19,7 @@ setup(
             'wall_follow = robo_behaviors_fsm.wall_following_node:main',
             'state_machine = robo_behaviors_fsm.state_machine_node:main',
             'person_following = robo_behaviors_fsm.person_following_node:main',
+            'test = robo_behaviors_fsm.laser_test_node:main'
         ],
     },
     data_files=[
