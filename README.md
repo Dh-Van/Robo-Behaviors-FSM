@@ -3,6 +3,7 @@ By: Zaraius Bilimoria, Dhvan Shah
 
 Introduction/Overview: Neato
 This warmup project is an introduction to working with the Neatos, a vacumming robot using ROS2, the robot operating system. Our goal is to control the Neato and take it through different states, a circle, wall following, turning and person following as well as an emergency stop. We implemented these in a scalable way which allows for modifications our goal was to control the Neato
+
 add a picture of a neato here   
 
 ### How to run 
@@ -31,6 +32,8 @@ We used a simple proportinal controller on rotation of the robot. We don't want 
 The main purpose of this behavior was to follow an object near it. We were able to make assumptions about the enviroment of the neato to make this behavior simpler to implement. The biggest assumption we made was assuming that the closest object to the neato was what we want it to follow. 
 
 From a high level, this code uses proportional control to stay a certain distance away from the closest point, and a different proportional controller to face the object. Having two different proportional controllers that control the robot's position isn't best practice. The distance controller controls the linear positioning of the robot, while the angle controller controls the angular positioning, but combining them leads to unexpected behavior. For the future, we would want a more nuanced controller that determines the error, both angular and linear, from the object and uses one proportional controller to correct for that error.
+
+One of the biggest improvements we would want to make for the future would be to actually detect if it was a person / object we were following. We couldn't find a good way of doing this without using a camera, so we decided to not pursue this direction for this project.
 
 #### Estop:
 

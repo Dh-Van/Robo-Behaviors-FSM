@@ -1,87 +1,167 @@
-import rclpy
-from rclpy.node import Node
-from std_msgs.msg import UInt8, Bool
-from sensor_msgs.msg._laser_scan import LaserScan
-from robo_behaviors_fsm.state_machine_node import STATE
-from geometry_msgs.msg import Twist
-
-from pprint import pprint
-import numpy as np
+"""
+This script implements a ROS 2 node for a simple person-following behavior.
+It uses LaserScan data to detect the closest object, calculates the error
+to a target distance, and publishes velocity commands to follow it.
+"""
+# Standard library imports
 import math
 
+# Third-party imports
+import numpy as np
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Bool, UInt8
+
+# Local application imports
+from robo_behaviors_fsm.state_machine_node import STATE
+
+
 class PersonFollowingNode(Node):
+    """
+    Follows the closest detected object using LaserScan data.
+
+    This node implements a simple proportional controller. It subscribes to a
+    laser scan topic to find the closest point, calculates the distance and
+    angle error to a predefined setpoint, and publishes Twist messages to
+    minimize these errors when in the PERSON_FOLLOW state.
+    """
     def __init__(self):
+        """Initializes the node, parameters, and ROS communications."""
         super().__init__('person_following_node')
-        
-        self.timer = self.create_timer(0.25, self.periodic)
-        
+
+        # --- Control Parameters and Constants ---
+        self.TARGET_DISTANCE = 0.7              # meters
+        self.LINEAR_P_GAIN = 0.1                # Proportional gain for linear velocity
+        self.ANGULAR_P_GAIN = 0.1               # Proportional gain for angular velocity
+        self.LARGE_ANGLE_THRESHOLD = math.radians(45) # Angle at which the robot stops moving forward
+        self.PERSON_DETECTION_RANGE = 2.0       # Max distance to consider a person "found"
+
+        # --- Internal State Variables ---
         self.state = STATE.IDLE
-        self.create_subscription(UInt8, '/current_state', self.update_state, 10) 
-        self.create_subscription(LaserScan, '/stable_scan', self.scan, 10)
-        self.found_person_pub = self.create_publisher(Bool, '/found_person', 10)
-        self.test_driver = self.create_publisher(Twist, '/cmd_vel', 10)
-        
-        self.distance_error = 0
-        self.angle_error = 0
-        self.forward = 1
+        self.distance_error = 0.0
+        self.angle_error = 0.0
+        self.min_forward_distance = float('inf')
 
-        
-        
-    def update_state(self, msg):
+        # --- ROS 2 Communications ---
+        self.create_subscription(UInt8, '/current_state', self.state_callback, 10)
+        self.create_subscription(LaserScan, '/stable_scan', self.scan_callback, 10)
+        self.found_person_publisher = self.create_publisher(Bool, '/found_person', 10)
+        self.cmd_vel_publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.create_timer(0.25, self.timer_callback) # 4 Hz control loop
+
+        self.get_logger().info('Person Following Node has been initialized.')
+
+    def state_callback(self, msg: UInt8):
+        """
+        Updates the node's internal state based on the /current_state topic.
+
+        Args:
+            msg: The message containing the new state enum.
+        """
         try:
-            self.state = STATE(msg.data)
-        except ValueError as e:
-            print(f'ERROR: Invalid State - {e}')
-            
-    def scan(self, msg: LaserScan):
-        detection_distances = msg.ranges
-            
-        min_distance = min(detection_distances)
-        angle = msg.angle_min + (detection_distances.index(min_distance)) * msg.angle_increment
+            new_state = STATE(msg.data)
+            if self.state != new_state:
+                self.get_logger().info(f'State changed from {self.state.name} to {new_state.name}')
+                self.state = new_state
+        except ValueError:
+            self.get_logger().error(f'Received an invalid state value: {msg.data}')
 
-        # print(angle)
-        # print(f"{min_distance=}")
-        self.distance_error = min_distance - 0.7
-        
-        self.forward = self.get_forward_distance(msg)
-        self.angle_error = angle
+    def scan_callback(self, scan_msg: LaserScan):
+        """
+        Processes LaserScan data to find the closest object and update errors.
 
-    
-    def get_forward_distance(self, msg):
-        left_forward_dist = self.get_distance_angle(msg, np.deg2rad(-180 - 10))
-        right_forward_dist = self.get_distance_angle(msg, np.deg2rad(180 - 10))
-        front_forward_dist = self.get_distance_angle(msg, np.deg2rad(180))
-        
-        return min(left_forward_dist, (min(right_forward_dist, front_forward_dist)))
-        
-    def get_distance_angle(self, msg, angle):
-        return msg.ranges[int((angle - msg.angle_min) / msg.angle_increment)]
-                                
-    def periodic(self):
-        msg = Twist()
-        found_person = Bool()
-        found_person.data = False
-        if self.forward  < 2:
-            found_person.data = True
-        self.found_person_pub.publish(found_person)
-        
-        msg.linear.x = (0.1 * self.distance_error)  ## this should take angle into account so for large angle errors 
-        if abs(self.angle_error) > math.radians(45):
-            msg.linear.x = 0.0
-        print(f'{self.distance_error}, LinearX: {msg.linear.x}')
+        Args:
+            scan_msg: The incoming laser scan data.
+        """
+        # Find the shortest distance and its corresponding angle
+        min_dist_index = np.argmin(scan_msg.ranges)
+        min_distance = scan_msg.ranges[min_dist_index]
+        angle_of_min_dist = scan_msg.angle_min + min_dist_index * scan_msg.angle_increment
 
-        msg.angular.z = 0.1 * -self.angle_error
-        if(self.state == STATE.PERSON_FOLLOW):
-            self.test_driver.publish(msg)
+        # Update errors for the proportional controller
+        self.distance_error = min_distance - self.TARGET_DISTANCE
+        self.angle_error = angle_of_min_dist - math.pi
+
+        # Check for obstacles directly in front
+        self.min_forward_distance = self.get_forward_distance(scan_msg)
+
+    def get_forward_distance(self, scan_msg: LaserScan) -> float:
+        """
+        Checks for the minimum distance in a forward-facing cone.
+        Note: Assumes 180 degrees (pi radians) is directly forward.
+
+        Args:
+            scan_msg: The laser scan data.
+
+        Returns:
+            The minimum distance found in the forward cone.
+        """
+        # Angles are checked relative to the 'forward' direction (180 degrees)
+        center_dist = self.get_distance_at_angle(scan_msg, np.deg2rad(180))
+        left_dist = self.get_distance_at_angle(scan_msg, np.deg2rad(180 - 10))
+        right_dist = self.get_distance_at_angle(scan_msg, np.deg2rad(180 + 10))
         
+        return min(center_dist, left_dist, right_dist)
+
+    def get_distance_at_angle(self, scan_msg: LaserScan, angle: float) -> float:
+        """
+        Calculates the laser scan range index for a given angle.
+
+        Args:
+            scan_msg: The laser scan data.
+            angle: The desired angle in radians.
+
+        Returns:
+            The distance measurement at the specified angle.
+        """
+        index = int((angle - scan_msg.angle_min) / scan_msg.angle_increment)
+        # Ensure index is within the valid range
+        index = max(0, min(index, len(scan_msg.ranges) - 1))
+        return scan_msg.ranges[index]
+
+    def timer_callback(self):
+        """
+        Main control loop. Publishes a 'found person' status and, if active,
+        sends velocity commands to follow the person.
+        """
+        # Publish if a person is detected within the forward range
+        found_person_msg = Bool()
+        found_person_msg.data = self.min_forward_distance < self.PERSON_DETECTION_RANGE
+        self.found_person_publisher.publish(found_person_msg)
         
+        # Only publish velocity commands if in the correct state
+        if self.state != STATE.PERSON_FOLLOW:
+            return
+
+        twist_msg = Twist()
         
+        # Proportional control for linear velocity based on distance error
+        twist_msg.linear.x = self.LINEAR_P_GAIN * self.distance_error
+        
+        # If the angle error is too large, stop moving forward to turn in place
+        if abs(self.angle_error) > self.LARGE_ANGLE_THRESHOLD:
+            twist_msg.linear.x = 0.0
+
+        # Proportional control for angular velocity based on angle error (inverted)
+        twist_msg.angular.z = -self.ANGULAR_P_GAIN * self.angle_error
+        
+        self.get_logger().debug(
+            f'DistErr: {self.distance_error:.2f}, AngErr: {math.degrees(self.angle_error):.1f} | '
+            f'CmdVel: (LinX: {twist_msg.linear.x:.2f}, AngZ: {twist_msg.angular.z:.2f})'
+        )
+        self.cmd_vel_publisher.publish(twist_msg)
+
+
 def main(args=None):
+    """Initializes the ROS 2 node, spins it, and handles shutdown."""
     rclpy.init(args=args)
     node = PersonFollowingNode()
     rclpy.spin(node)
+    node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
-        
