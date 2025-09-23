@@ -23,14 +23,14 @@ The main purpose of this behavior is to drive forward, while maintaining a const
 
 From a high level, this code uses proportional control to minimize distance from the wall, and try to make the angle of the wall as close to parallel as possible. The distance error is based off of the lidar data from a point directly to the left (90 degrees) of the neato. The angle of the wall is more nuanced. We first pick the same left point from the neato. We then pick a point slightly in front of that point, we decided to make this 45 degrees from the neato (With 0 as the front). Then we calculate the angle of the line connecting those 2 points, using atan2(). This tells us the angle of the wall, relative to vertical. Since we want to be parallel to the wall, the angle error is just the angle of the wall, since we ideally want to be a 0. 
 
-To correct for error, we used a simple proportinal controller on rotation of the robot. We don't want to change the linear speed of the robot, since we want that to remain constant, so we do all adjustment using the rotation of the robot. There are 2 components to this: the error in the distance from the wall, and the error from the angle of the wall. We use a naive way to combine these components, just by adding up these errors and using 2 different P values. This ended up working really well for us, but in the future we would want to explore more nuanced ways of combining these components. 
+We used a simple proportinal controller on rotation of the robot. We don't want to change the linear speed of the robot, since we want to follow the wall at a constant speed, so we do all adjustment using the rotation of the robot. There are 2 components to this: the error in the distance from the wall, and the error from the angle of the wall. We use a naive way to combine these components, just by adding up these errors and using 2 different P values. This ended up working really well for us, but in the future we would want to explore more nuanced ways of combining these components. 
 
 
 #### Person Following:
 
 The main purpose of this behavior was to follow an object near it. We were able to make assumptions about the enviroment of the neato to make this behavior simpler to implement. The biggest assumption we made was assuming that the closest object to the neato was what we want it to follow. 
 
-From a high level, this code uses proportional control to stay a certain distance away from the closest point, and 
+From a high level, this code uses proportional control to stay a certain distance away from the closest point, and a different proportional controller to face the object. Having two different proportional controllers that control the robot's position isn't best practice. The distance controller controls the linear positioning of the robot, while the angle controller controls the angular positioning, but combining them leads to unexpected behavior. For the future, we would want a more nuanced controller that determines the error, both angular and linear, from the object and uses one proportional controller to correct for that error.
 
 #### Estop:
 
