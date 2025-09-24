@@ -122,4 +122,5 @@ Our design emphasizes decentralization and clear communication channels via ROS2
  - The Power of the Publish/Subscribe Model: This project demonstrated the power of the ROS2 framework. The publish/subscribe communication model allowed our nodes to operate independently without direct knowledge of one another, making the system incredibly scalable and modular. A behavior node doesn't need to know who sets the state; it only needs to listen to the /current_state topic. This is the principle that makes complex robotics systems manageable.
 
 # Video
-[Screencast from 2025-09-21 23-18-37.webm](https://github.com/user-attachments/assets/4741d72b-ed4e-482c-817a-635ad74f0658)
+[Screencast from 2025-09-23 23-58-07.webm](https://github.com/user-attachments/assets/d8f3526e-38b5-4a11-acbf-91a291693586)
+
