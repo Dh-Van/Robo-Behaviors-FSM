@@ -1,52 +1,122 @@
 # Introduction to Computational Robotics: Warmup Project
 By: Zaraius Bilimoria, Dhvan Shah
 
-Introduction/Overview: Neato
-This warmup project is an introduction to working with the Neatos, a vacumming robot using ROS2, the robot operating system. Our goal is to control the Neato and take it through different states, a circle, wall following, turning and person following as well as an emergency stop. We implemented these in a scalable way which allows for modifications our goal was to control the Neato
+### Overview:
+This project serves as an introduction to robotics programming using the Robot Operating System (ROS2) with a Neato vacuum robot. The goal was to implement a finite-state machine (FSM) to control the Neato, enabling it to sequence through several distinct autonomous behaviors. We successfully implemented a full routine: exploring in an expanding spiral, finding and following a wall, navigating a corner, and then searching for and following a person. An overarching emergency stop (E-stop) state ensures safe operation.
 
-add a picture of a neato here   
+The architecture is modular, with a central state machine node controlling the transitions while dedicated behavior nodes handle the control logic for each specific task.
+
+![image of neato](neato.png)
 
 ### How to run 
-```ros2 run ...```
+First, ensure you are in your ROS2 workspace(if you are using Docker, make sure you are inside your container). Build the package and source the environment with the following command:
+```bash
+cd ~/ros2_ws
+colcon build --symlink-install --packages-select robo_behaviors_fsm
+source ~/ros2_ws/install/setup.bash
+```
+
+Then, you can launch the finite-state machine and all associated behavior nodes using our launch file:
+
+```ros2 launch robo_behaviors_fsm launch.py```
+
+### Finite State Machine Design
+The overall mission for our robot is to explore until it finds a wall, follow the wall until it reaches a corner, execute a turn, drive straight to find a person, and then begin following that person. 
 
 
-The write-up contains sufficient information to understand what was completed during the project, how to interact with the project elements, what each team member contributed, and shows evidence of what was learned.
+States and Transitions
+Our FSM consists of seven distinct states defined in our State enum:
+1. IDLE: The initial state where the robot is stationary.
 
-For each behavior, describe the problem at a high-level. Include any relevant diagrams that help explain your approach.  Discuss your strategy at a high-level and include any design decisions that had to be made to realize a successful implementation.
+2. CIRCLE: The robot drives in an expanding clockwise spiral to explore.
 
-#### Circle:
-We start our neato by driving in a circle with an increasing radius. This is our way to explore the environment. In order to do this we have a we have a subscriber of the current_state and a publisher of the commanded velocity of the neato. When our state machine gives us a signal that it wants to be in circle mode, by subscribing to the current_state and checking its value, the drive_circle_node will start publishing its cmd_vel. The drive_circle does the MATH-MATH-MATH
+3. WALL_FOLLOW: The robot follows a wall on its right side at a fixed distance.
+
+4. TURN: An open-loop behavior to execute a fixed-angle turn at a corner.
+
+5. STRAIGHT: The robot drives straight forward, searching for a person.
+
+6. PERSON_FOLLOW: The robot identifies and follows the closest detected object.
+
+7. ESTOP: A terminal state where the robot immediately stops all movement.
+
+Transitions are managed by the central state_machine_node, which listens to boolean flag topic published by the behaviors nodes.
+ - IDLE --> CIRCLE: Occurs automatically upon startup(in the future could wait for an initialize command)
+ - CIRCLE --> WALL_FOLLOW: Triggers when /wall_found topic publishes True
+ - WALL_FOLLOW -> TURN:  when the /wall_end topic publishes True, indicating a corner has been detected. 
+ - TURN -> STRAIGHT:  Occurs after the robot completes its pre-programmed 135-degree turn.
+ - STRAIGHT -> PERSON_FOLLOW: Triggers when the /found_person topic publishes True.
+ - (Any State) -> ESTOP: Triggers immediately if the /estop topic publishes True (e.g., from a bumper collision).
+
+#### Implemented Behaviors
+Each major behavior is encapsulated in its own ROS2 node. This modular design allows for independent testing and clear separation of concerns.
+
+##### Circle (Exploration)
+ - Node: drive_circle_node.py
+
+ - Goal: To have the robot explore its surroundings to find a boundary wall.
+
+ - Strategy: The robot drives in a clockwise spiral with a constantly increasing radius. The linear velocity v is constant, while the angular velocity ω is calculated as ω=v/r, where the radius r grows over time. This ensures efficient and expanding coverage of the area.
+
+##### Wall Following
+ - Node: wall_following_node.py
+
+ - Goal: To drive forward while maintaining a constant distance to a wall.
+ - Assumptions: A key assumption is that the wall will be on the robot's right side. This is a safe assumption because the preceding CIRCLE state moves in a clockwise spiral, naturally placing the robot's right side toward any discovered boundary.
+
+ - Control Strategy: We implemented a proportional controller that adjusts only the robot's angular velocity to keep its linear speed constant. The control logic is based on two error terms calculated from the LIDAR scan:
+    - Distance Error: The difference between the target distance and the measured distance from a point directly to the robot's right (a scan at -90°).
+    - Angle Error: The angle of the wall relative to the robot's frame. This is calculated by taking two LIDAR points (at -90° and -135°) and finding the angle of the line between them using atan2(). An angle of zero means the robot is perfectly parallel to the wall.
+The final angular velocity command is a simple weighted sum of these two errors.
+
+ - Corner Detection: This node also determines when a wall ends (i.e., a corner is reached). It does this by checking for a close obstacle in the robot's forward path after it has been following the wall for a minimum duration. It then publishes True to the /wall_end topic.
 
 
-#### Wall Following:
+##### Corner Navigation (Self-Designed Behavior)
+This behavior is our own unique addition and is handled directly by the state_machine_node. It combines two states, TURN and STRAIGHT, to navigate corners.
 
-The main purpose of this behavior is to drive forward, while maintaining a constant distance to a wall. We made some critical assumptions whilst designign this behavior to make it simpler and easier to implement. The biggest assumption we made was that the wall would be on the left side of the robot. Since we knew this behavior would directly follow the circle behavior we were able to make this assumption. The neato goes in a clockwise circle, so the neato is almost assuredly on the left side of the wall. Another assumption this algorithm makes is that any lidar data on the left side of the neato is a wall. Again we are able to make this assumption because of the previous circle behavior. Also since we decided to do this in just sim, we decide the robot enviroment.
+ - Goal: To successfully turn a corner after wall-following and then proceed forward.
 
-From a high level, this code uses proportional control to minimize distance from the wall, and try to make the angle of the wall as close to parallel as possible. The distance error is based off of the lidar data from a point directly to the left (90 degrees) of the neato. The angle of the wall is more nuanced. We first pick the same left point from the neato. We then pick a point slightly in front of that point, we decided to make this 45 degrees from the neato (With 0 as the front). Then we calculate the angle of the line connecting those 2 points, using atan2(). This tells us the angle of the wall, relative to vertical. Since we want to be parallel to the wall, the angle error is just the angle of the wall, since we ideally want to be a 0. 
+ - TURN State Strategy: This is an open-loop maneuver. Upon entering this state, the robot executes a timed turn at a constant angular velocity to achieve a rotation of approximately 135 degrees. This positions it to move into the new open space.
 
-We used a simple proportinal controller on rotation of the robot. We don't want to change the linear speed of the robot, since we want to follow the wall at a constant speed, so we do all adjustment using the rotation of the robot. There are 2 components to this: the error in the distance from the wall, and the error from the angle of the wall. We use a naive way to combine these components, just by adding up these errors and using 2 different P values. This ended up working really well for us, but in the future we would want to explore more nuanced ways of combining these components. 
+ - STRAIGHT State Strategy: After turning, the robot drives straight forward. During this phase, the person_following_node is actively scanning for a target.
 
+##### Person Following
+ - Node: person_following_node.py
 
-#### Person Following:
+ - Goal: To identify and follow a nearby person or object.
+ - Assumptions: To simplify the problem, we assume that the closest object detected by the LIDAR is the target we want to follow. This works well in uncluttered environments.
+ - Control Strategy: This node uses two independent proportional controllers—one for linear velocity and one for angular velocity.
 
-The main purpose of this behavior was to follow an object near it. We were able to make assumptions about the enviroment of the neato to make this behavior simpler to implement. The biggest assumption we made was assuming that the closest object to the neato was what we want it to follow. 
+    - It first finds the closest point in the LIDAR scan to identify the target.
 
-From a high level, this code uses proportional control to stay a certain distance away from the closest point, and a different proportional controller to face the object. Having two different proportional controllers that control the robot's position isn't best practice. The distance controller controls the linear positioning of the robot, while the angle controller controls the angular positioning, but combining them leads to unexpected behavior. For the future, we would want a more nuanced controller that determines the error, both angular and linear, from the object and uses one proportional controller to correct for that error.
+    - An angular controller adjusts the robot's rotation to face the target directly.
 
-One of the biggest improvements we would want to make for the future would be to actually detect if it was a person / object we were following. We couldn't find a good way of doing this without using a camera, so we decided to not pursue this direction for this project.
+    - A linear controller adjusts the robot's forward speed to maintain a fixed distance from the target.
 
-#### Estop:
-
-
-
-#### Finite State machine
-For the finite state controller, what was the overall behavior? What were the states? What did the robot do in each state? How did you combine behaviors together and how did you detect when to transition between behaviors?  Consider including a state transition diagram in your writeup.
-
+    - A key refinement is that the robot will stop moving forward if the angle error is large, allowing it to turn in place to face the target before proceeding. This creates more stable following behavior.
 
 
-Conclusion:
+### System Architecture & Code Structure
+Our design emphasizes decentralization and clear communication channels via ROS2 topics.
 
-How was your code structured? Make sure to include a sufficient detail about the object-oriented structure you used for your project.
-What, if any, challenges did you face along the way?
-What would you do to improve your project if you had more time?
-What are the key takeaways from this assignment for future robotic programming projects? For each takeaway, provide a sentence or two of elaboration.
+ - state_machine_node.py: The "brain" of the FSM. It is the sole authority on the robot's current state. It subscribes to boolean flag topics (/wall_found, /wall_end, /found_person, /estop) and publishes the active state to /current_state. It also directly handles the /cmd_vel publishing for the TURN and STRAIGHT states.
+
+ - Behavior Nodes (drive_circle.py, wall_follower.py, person_follower.py): These act as "behavior servers." They all subscribe to /current_state. Each node only executes its logic and publishes to /cmd_vel when its corresponding state is active.
+
+ - Sensor Processing Nodes: The wall_follower and person_follower nodes also process /stable_scan data to produce higher-level information, which they publish as boolean flags for the state machine to use. This decouples complex sensor processing from the state transition logic.
+
+
+### Project Reflection
+##### Challenges:
+ - Tuning Controller Hyperparameters: A significant amount of time was dedicated to tuning the proportional gains (p) and distance setpoints for the wall-following and person-following behaviors. Finding the right balance was critical; gains that were too high caused unstable oscillations, while gains that were too low resulted in a sluggish and unresponsive robot. This process of iterative, manual tuning highlighted the sensitivity of control systems.
+
+ - Debugging in a Distributed System: The nature of ROS2, with multiple nodes running concurrently, introduced unique debugging challenges. We encountered issues ranging from simple mistakes like forgetting to build and source the workspace, to more complex problems. In one instance, the simulated robot behaved erratically because a second, hidden Docker container was also publishing to the /cmd_vel topic. This taught us the importance of verifying the entire system state when debugging, as the issue isn't always in the code you're looking at.
+ ##### Future Improvements:
+ - More Robust State Transitions: The current transition logic, particularly for corner detection, relies on a simple timer heuristic (waiting five seconds before checking for a forward obstacle). We would improve this by implementing more robust, sensor-driven logic that analyzes the geometry of the LIDAR scan to detect corners directly, making the transition more immediate and reliable.
+ - Ambidextrous Wall Following: For simplicity, our algorithm strictly follows walls on the robot's right side. A major improvement would be to make the behavior more flexible, allowing the robot to detect and choose to follow a wall on either its left or right side, making it far more adaptable to arbitrary environments.
+ - Sim-to-Real Deployment: All of our development and testing has been conducted in the Gazebo simulator. The ultimate goal is to bridge the sim-to-real gap by deploying and testing our code on the physical Neato robot. This would involve addressing real-world challenges like sensor noise, battery limitations, and unpredictable environmental factors.
+
+##### Key Takeaways
+ - Modularity is the Key to Managing Complexity: Our most important takeaway was the power of separating the FSM logic from the individual behavior nodes. By first defining the states, transitions, and communication interfaces (the ROS2 topics) together, we were able to split the work and develop the behavior nodes in parallel. This decoupled architecture made the entire system much easier to build, test, and debug.
+ - The Power of the Publish/Subscribe Model: This project demonstrated the power of the ROS2 framework. The publish/subscribe communication model allowed our nodes to operate independently without direct knowledge of one another, making the system incredibly scalable and modular. A behavior node doesn't need to know who sets the state; it only needs to listen to the /current_state topic. This is the principle that makes complex robotics systems manageable.
