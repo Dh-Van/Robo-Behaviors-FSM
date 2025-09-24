@@ -35,7 +35,6 @@ class PersonFollowingNode(Node):
         self.TARGET_DISTANCE = 0.7              # meters
         self.LINEAR_P_GAIN = 0.1                # Proportional gain for linear velocity
         self.ANGULAR_P_GAIN = 0.1               # Proportional gain for angular velocity
-        self.LARGE_ANGLE_THRESHOLD = math.radians(45) # Angle at which the robot stops moving forward
         self.PERSON_DETECTION_RANGE = 2.0       # Max distance to consider a person "found"
 
         # --- Internal State Variables ---
@@ -76,34 +75,31 @@ class PersonFollowingNode(Node):
             scan_msg: The incoming laser scan data.
         """
         # Find the shortest distance and its corresponding angle
+        # Using np.argmin is a safe way to handle potential 'inf' values in scan data
         min_dist_index = np.argmin(scan_msg.ranges)
         min_distance = scan_msg.ranges[min_dist_index]
         angle_of_min_dist = scan_msg.angle_min + min_dist_index * scan_msg.angle_increment
 
         # Update errors for the proportional controller
         self.distance_error = min_distance - self.TARGET_DISTANCE
-        self.angle_error = angle_of_min_dist - math.pi
-
-        # Check for obstacles directly in front
+        
+        # RESTORED: self.angle_error is the absolute angle, matching original logic.
+        self.angle_error = angle_of_min_dist
+        
+        # Check for obstacles using the original set of angles
         self.min_forward_distance = self.get_forward_distance(scan_msg)
 
     def get_forward_distance(self, scan_msg: LaserScan) -> float:
         """
-        Checks for the minimum distance in a forward-facing cone.
-        Note: Assumes 180 degrees (pi radians) is directly forward.
-
-        Args:
-            scan_msg: The laser scan data.
-
-        Returns:
-            The minimum distance found in the forward cone.
+        Checks for the minimum distance in a forward-facing cone using the
+        original implementation's specific angles.
         """
-        # Angles are checked relative to the 'forward' direction (180 degrees)
-        center_dist = self.get_distance_at_angle(scan_msg, np.deg2rad(180))
-        left_dist = self.get_distance_at_angle(scan_msg, np.deg2rad(180 - 10))
-        right_dist = self.get_distance_at_angle(scan_msg, np.deg2rad(180 + 10))
+        # RESTORED: Using the exact angles from the original code.
+        angle1 = self.get_distance_at_angle(scan_msg, np.deg2rad(-180 - 10)) # -190 deg
+        angle2 = self.get_distance_at_angle(scan_msg, np.deg2rad(180 - 10))  # 170 deg
+        angle3 = self.get_distance_at_angle(scan_msg, np.deg2rad(180))       # 180 deg
         
-        return min(center_dist, left_dist, right_dist)
+        return min(angle1, angle2, angle3)
 
     def get_distance_at_angle(self, scan_msg: LaserScan, angle: float) -> float:
         """
@@ -117,7 +113,7 @@ class PersonFollowingNode(Node):
             The distance measurement at the specified angle.
         """
         index = int((angle - scan_msg.angle_min) / scan_msg.angle_increment)
-        # Ensure index is within the valid range
+        # Ensure index is within the valid range to prevent crashes
         index = max(0, min(index, len(scan_msg.ranges) - 1))
         return scan_msg.ranges[index]
 
@@ -140,11 +136,8 @@ class PersonFollowingNode(Node):
         # Proportional control for linear velocity based on distance error
         twist_msg.linear.x = self.LINEAR_P_GAIN * self.distance_error
         
-        # If the angle error is too large, stop moving forward to turn in place
-        if abs(self.angle_error) > self.LARGE_ANGLE_THRESHOLD:
-            twist_msg.linear.x = 0.0
 
-        # Proportional control for angular velocity based on angle error (inverted)
+        # Proportional control for angular velocity based on angle error
         twist_msg.angular.z = -self.ANGULAR_P_GAIN * self.angle_error
         
         self.get_logger().debug(
