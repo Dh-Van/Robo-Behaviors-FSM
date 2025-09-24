@@ -120,3 +120,6 @@ Our design emphasizes decentralization and clear communication channels via ROS2
 ##### Key Takeaways
  - Modularity is the Key to Managing Complexity: Our most important takeaway was the power of separating the FSM logic from the individual behavior nodes. By first defining the states, transitions, and communication interfaces (the ROS2 topics) together, we were able to split the work and develop the behavior nodes in parallel. This decoupled architecture made the entire system much easier to build, test, and debug.
  - The Power of the Publish/Subscribe Model: This project demonstrated the power of the ROS2 framework. The publish/subscribe communication model allowed our nodes to operate independently without direct knowledge of one another, making the system incredibly scalable and modular. A behavior node doesn't need to know who sets the state; it only needs to listen to the /current_state topic. This is the principle that makes complex robotics systems manageable.
+
+# Video
+[Screencast from 2025-09-21 23-18-37.webm](https://github.com/user-attachments/assets/4741d72b-ed4e-482c-817a-635ad74f0658)
